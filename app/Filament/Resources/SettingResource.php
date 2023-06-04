@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources;
 
+use Closure;
 use Filament\Forms;
 use Filament\Tables;
 use App\Models\Setting;
 use Filament\Resources\Form;
 use Filament\Resources\Table;
 use Filament\Resources\Resource;
+use Illuminate\Support\HtmlString;
+use Filament\Forms\Components\Grid;
 use Filament\Notifications\Notification;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Notifications\Actions\Action;
@@ -25,11 +28,54 @@ class SettingResource extends Resource
             ->schema([
                 // Forms\Components\TextInput::make('site_id'),
 
-                Forms\Components\TextInput::make('name')
-                    ->label(__('Config name'))
-                    ->required(),
+                Grid::make()
+                    ->schema([
+                        Forms\Components\Toggle::make('enable_edit_config_name')
+                            ->extraAttributes([
+                                'x-data' => "{}",
+                                'x-tooltip.raw' => __('Enable edition of config name'),
+                                'class' => 'pt-4 mt-4',
+                            ], true)
+
+                            // https://filamentphp.com/tricks/add-a-link-or-html-to-field-label
+                            ->label(fn () => new HtmlString(
+                                \sprintf(
+                                    '<a class="%s" x-data="{}" x-tooltip.raw="%s">%s</a>',
+                                    ...[
+                                        'pt-4 mt-4',
+                                        __('Enable edition of config name'),
+                                        ''// __('Enable editing'),
+                                    ]
+                                )
+                            ))
+                            ->reactive()
+                            ->dehydrated(false)
+                            // ->disableLabel()
+                            // ->tooltip(
+                            //     fn (Setting $record): string => $record->active
+                            //         ? __('Disable')
+                            //         : __('Enable')
+                            // )
+                            ->helperText(__('Enable editing'))
+                            // ->label(__('Enable editing'))
+                            ->columns(1),
+
+                        Forms\Components\TextInput::make('name')
+                            ->label(__('Config name'))
+                            ->disabled(fn (Closure $get) => !$get('enable_edit_config_name'))
+                            // ->columnSpan(2)
+                            ->inlineLabel(false)
+                            ->reactive()
+                            ->required(),
+                    ])
+                    ->columnSpan(1)
+                    ->extraAttributes([
+                        // 'class' => 'grid_container grid grid-cols-1   lg:grid-cols-2   filament-forms-component-container gap-6',
+                    ], true),
 
                 Forms\Components\TextInput::make('key') // TODO make unique site_id+key
+                    ->disabled()
+                    ->dehydrated(false)
                     ->label(__('Config key')),
 
                 Forms\Components\Select::make('type')
@@ -43,59 +89,73 @@ class SettingResource extends Resource
                         Setting::TYPE_RICH_TEXT => __('Rich text'),
                     ])
                     ->default(Setting::TYPE_STRING)
+                    ->reactive()
                     ->required(),
 
-                Forms\Components\TextInput::make('value_when_string'),
+                Forms\Components\TextInput::make('value_when_string')
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_STRING),
 
                 Forms\Components\Textarea::make('value_when_long_text')
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_LONG_TEXT)
                     ->columnSpanFull(),
 
                 Forms\Components\MarkdownEditor::make('value_when_rich_text')
-                        ->helperText(
-                            fn (Setting $record) =>
-                            \App\Helpers\EasyHtml::make(
-                                __('You can use Markdown instructions. :link', [
-                                    'link' => '<a href="#linkDoc">' . __('See more') . '</a>' . (fn (Setting $record): string => $record->id)($record)
-                                ])
-                            )
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_RICH_TEXT)
+                    ->helperText(
+                        fn (Setting $record) =>
+                        \App\Helpers\EasyHtml::make(
+                            __('You can use Markdown instructions. :link', [
+                                'link' => \sprintf(
+                                    '<a href="%s">%s</a>.',
+                                    ...[
+                                        '#docLink' .
+                                            (fn (Setting $record): string => $record->id)($record),
+                                        __('See more'),
+                                    ]
+                                )
+                            ])
                         )
-                        ->toolbarButtons([
-                            'attachFiles',
-                            'bold',
-                            'bulletList',
-                            'codeBlock',
-                            'edit',
-                            'italic',
-                            'link',
-                            'orderedList',
-                            'preview',
-                            'strike',
-                        ])
-                        ->enableToolbarButtons([
-                            'attachFiles',
-                        ])
-                        ->fileAttachmentsDirectory(
-                            fn (Setting $record): string => \implode(
-                                \DIRECTORY_SEPARATOR,
-                                [
-                                    'attachments',
-                                    $record->site_id ? str($record->site_id)->slug('-') : '_general'
-                                ]
-                            )
+                    )
+                    ->toolbarButtons([
+                        'attachFiles',
+                        'bold',
+                        'bulletList',
+                        'codeBlock',
+                        'edit',
+                        'italic',
+                        'link',
+                        'orderedList',
+                        'preview',
+                        'strike',
+                    ])
+                    ->enableToolbarButtons([
+                        'attachFiles',
+                    ])
+                    ->fileAttachmentsDirectory(
+                        fn (Setting $record): string => \implode(
+                            \DIRECTORY_SEPARATOR,
+                            [
+                                'attachments',
+                                $record->site_id ? str($record->site_id)->slug('-') : '_general'
+                            ]
                         )
-                        ->fileAttachmentsVisibility('public')
+                    )
+                    ->fileAttachmentsVisibility('public')
                     ->columnSpanFull(),
 
                 Forms\Components\Textarea::make('value_when_json')
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_JSON)
                     ->columnSpanFull(),
 
                 Forms\Components\Select::make('value_when_boolean')
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_BOOLEAN)
                     ->options([
                         true => __('true'),
                         false => __('false'),
                     ]),
 
                 Forms\Components\TextInput::make('value_when_number')
+                    ->hidden(fn (Closure $get) => $get('type') !== Setting::TYPE_NUMBER)
                     ->numeric(),
 
                 Forms\Components\Toggle::make('active')
