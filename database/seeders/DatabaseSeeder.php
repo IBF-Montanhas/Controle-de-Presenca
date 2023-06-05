@@ -23,5 +23,12 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             SettingSeeder::class,
         ]);
+
+        if (!app()->isProduction()) {
+            $this->call([
+                MembroSeeder::class,
+                EventoSeeder::class,
+            ]);
+        }
     }
 }
